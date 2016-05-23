@@ -11,18 +11,25 @@
 struct _mstg_mp3_t {
     char* file_path;
     FILE* file;
+
     off_t size;
+    size_t position;
     char* bytes;
+
     int32_t tag_size;
-    size_t sample_size;
+    uint32_t frame_size;
 };
+
+uint32_t bitrate_map[] = {0, 32000, 40000, 48000, 56000, 64000, 80000, 96000, 112000, 128000, 160000,
+192000, 224000, 256000, 320000, 0};
+uint32_t samplerate_map[] = {44100, 48000, 32000, 0};
 
 mstg_mp3_t* mstg_mp3_new(const char* file_path) {
     mstg_mp3_t *mp3 = (mstg_mp3_t*)malloc(sizeof(mstg_mp3_t));
     if (!mp3) return NULL;
 
     mp3->tag_size = 0;
-    mp3->sample_size = 0;
+    mp3->frame_size = 0;
 
     mp3->file_path = (char*)malloc(strlen(file_path)*sizeof(char)+1);
     if (!mp3->file_path) return NULL;
@@ -33,10 +40,39 @@ mstg_mp3_t* mstg_mp3_new(const char* file_path) {
     if(!mp3->file) return NULL;
     mp3->bytes = read_file(mp3->file, mp3->size);
     if(!mp3->bytes) return NULL;
+    mp3->position = 0;
 
     mstg_mp3_parse_tag_size(mp3);
-
+    mstg_mp3_frame_size(mp3);
     return mp3;
+}
+
+uint32_t mstg_mp3_frame_size(mstg_mp3_t *mp3) {
+    if (!mp3->frame_size) {
+        uint32_t bitrate = 0;
+        uint32_t sample_rate = 0;
+        uint8_t padding = 0;
+        
+        uint8_t byte1 = 0, byte2 = 0;
+        while(1) {
+            byte1 = mp3->bytes[mp3->position++];
+            byte2 = mp3->bytes[mp3->position++];
+            if(byte1 == MP3_FRAME_HEADER_BYTE0 && byte2 == MP3_FRAME_HEADER_BYTE1) break;
+        } 
+        
+        byte1 = mp3->bytes[mp3->position];
+        bitrate = bitrate_map[byte1 >> 4];
+        
+        byte2 = byte1;
+        byte1 = byte1 << 4;
+        byte1 = byte1 >> 6;
+        sample_rate = samplerate_map[byte1];
+
+        byte2 = byte2 << 7;
+        padding = byte2 >> 7;
+        mp3->frame_size = (144.0*(bitrate/sample_rate)) + padding;
+    } 
+    return mp3->frame_size;
 }
 
 uint32_t mstg_mp3_get_tag_size(mstg_mp3_t *mp3) {
@@ -55,7 +91,9 @@ uint32_t mstg_mp3_parse_tag_size(mstg_mp3_t *mp3) {
         /* using htonl() because the size is stored in big-endian order */
         size = unsynchsafe(htonl(synchsafe_size)) + ID3V2_HEADER_SIZE;
         mp3->tag_size = size;
+        mp3->position = size;
     }
+    return size;
 }
 
 int unsynchsafe(int in) {
