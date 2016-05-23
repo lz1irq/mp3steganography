@@ -24,3 +24,14 @@ char* read_file(FILE* fp, off_t fsize) {
 
     return buffer;
 }
+
+size_t write_file(FILE* fp, char* content, size_t content_len) {
+    size_t bytes_written = 0;
+    printf("SHOULD WRITE %d BYTES\n", content_len);
+    bytes_written = fwrite(content, 1, content_len, fp);
+    if(!bytes_written) {
+        printf("%s\n", strerror(errno));
+    }
+    return bytes_written;
+}
+

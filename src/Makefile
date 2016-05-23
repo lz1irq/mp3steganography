@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-std=c99 -g
+CFLAGS=-std=c99 -g -Wall
 CFLAGS_LIB=$(CFLAGS) -c
 
 all: mstg
