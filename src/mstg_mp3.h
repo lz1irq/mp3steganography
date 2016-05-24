@@ -27,4 +27,5 @@ void mstg_mp3_read_frame(mstg_mp3_t *mp3, uint32_t frame_number, size_t read_siz
 size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg);
 uint32_t mstg_mp3_rand_frame(uint32_t max_frames);
 
+
 int unsynchsafe(int in); 

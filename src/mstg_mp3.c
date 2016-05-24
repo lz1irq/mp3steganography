@@ -89,7 +89,7 @@ size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
 }
 
 void mstg_mp3_read_frame(mstg_mp3_t *mp3, uint32_t frame_number, size_t read_size, void* read_dest) {
-    size_t read_pos = frame_number*(mp3->frame_size) + MP3_FRAME_HEADER_SIZE;
+    size_t read_pos = mp3->tag_size + frame_number*(mp3->frame_size) + MP3_FRAME_HEADER_SIZE;
     memcpy(read_dest, mp3->bytes+read_pos, read_size);
 }
 
