@@ -31,7 +31,7 @@ mstg_mp3_t* mstg_mp3_new(const char* file_path) {
 
     mp3->tag_size = 0;
     mp3->frame_size = 0;
-
+    
     mp3->file_path = (char*)malloc(strlen(file_path)*sizeof(char)+1);
     if (!mp3->file_path) return NULL;
     strcpy(mp3->file_path, file_path);
@@ -56,18 +56,58 @@ size_t mstg_mp3_writeout(mstg_mp3_t *mp3) {
     return bytes_written;
 }
 
-int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, char* msg, size_t msg_len, uint32_t key) {
+size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
+
+    size_t msg_len = 0;
+    mstg_mp3_read_frame(mp3, MSG_SIZE_FRAME, sizeof(msg_len), &msg_len);
+
+    srand(key);
+    size_t default_read_size = mp3->frame_size - MP3_FRAME_HEADER_SIZE;
+    size_t bytes_read = 0;
+    uint32_t max_frames = (mp3->size - mp3->tag_size)/mp3->frame_size;
+    uint32_t frames = (msg_len + default_read_size -1)/default_read_size;
+
+    *msg = malloc(msg_len);
+
+    if(!*msg) {
+        fprintf(stderr, "Out of memory. Quitting.\n");
+        exit(1);
+    }
+
+    for(uint32_t i=0; i<frames; i++) {
+        uint32_t frame_id = mstg_mp3_rand_frame(max_frames);
+        size_t read_size = 0;
+        if (msg_len - bytes_read >= default_read_size) read_size = default_read_size;
+        else read_size = msg_len - bytes_read;
+       
+        mstg_mp3_read_frame(mp3, frame_id, read_size, *msg);
+        bytes_read += read_size;
+    }
+
+    return msg_len;
+
+}
+
+void mstg_mp3_read_frame(mstg_mp3_t *mp3, uint32_t frame_number, size_t read_size, void* read_dest) {
+    size_t read_pos = frame_number*(mp3->frame_size) + MP3_FRAME_HEADER_SIZE;
+    memcpy(read_dest, mp3->bytes+read_pos, read_size);
+}
+
+int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32_t key) {
     srand(key);
     size_t default_write_size = mp3->frame_size - MP3_FRAME_HEADER_SIZE;
     uint32_t max_frames = (mp3->size - mp3->tag_size)/mp3->frame_size;
     uint32_t frames = (msg_len + default_write_size -1)/default_write_size;
 
-
-    if(frames > max_frames) {
+    /* one extra frame to hold the size of the message */
+    if(frames + 1 > max_frames) {
         return -1; 
     }
+
+    mstg_mp3_write_frame(mp3, MSG_SIZE_FRAME, &msg_len, sizeof(msg_len)); 
+
     for(uint32_t i=0; i<frames; i++) {
-        uint32_t frame_id = rand() % max_frames;
+        uint32_t frame_id = mstg_mp3_rand_frame(max_frames);
         
         size_t write_size = 0;
         if (msg_len >= default_write_size) write_size = default_write_size;
@@ -79,7 +119,15 @@ int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, char* msg, size_t msg_len, uint32
     return 1;
 }
 
-int8_t mstg_mp3_write_frame(mstg_mp3_t *mp3, uint32_t frame_number, char* msg, size_t msg_len) {
+uint32_t mstg_mp3_rand_frame(uint32_t max_frames) {
+    uint32_t frame_id = MSG_SIZE_FRAME;
+    while (frame_id == MSG_SIZE_FRAME) {
+        frame_id = rand() % max_frames;
+    }
+    return frame_id;
+}
+
+int8_t mstg_mp3_write_frame(mstg_mp3_t *mp3, uint32_t frame_number, void* msg, size_t msg_len) {
     uint32_t write_pos = frame_number*(mp3->frame_size) + MP3_FRAME_HEADER_SIZE;
     if (mp3->size - write_pos >= msg_len) {
         memcpy(mp3->bytes + write_pos, msg, msg_len);
