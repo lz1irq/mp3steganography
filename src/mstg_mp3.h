@@ -1,3 +1,6 @@
+#ifndef _MSTG_MP3_H
+#define _MSTG_MP3_H
+
 #include <stdint.h>
 #include <sys/stat.h>
 
@@ -23,9 +26,11 @@ int8_t mstg_mp3_write_frame(mstg_mp3_t *mp3, uint32_t frame_number, void* msg, s
 int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32_t key);
 size_t mstg_mp3_writeout(mstg_mp3_t *mp3);
 
-void mstg_mp3_read_frame(mstg_mp3_t *mp3, uint32_t frame_number, size_t read_size, void* read_dest);
+void* mstg_mp3_read_frame(mstg_mp3_t *mp3, uint32_t frame_number, size_t read_size);
 size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg);
 uint32_t mstg_mp3_rand_frame(uint32_t max_frames);
 
 
 int unsynchsafe(int in); 
+
+#endif

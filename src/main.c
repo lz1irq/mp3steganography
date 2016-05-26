@@ -6,7 +6,7 @@
 
 #include "mstg_mp3.h"
 
-#define STDIN_BUF_SIZE 64
+#define STDIN_BUF_SIZE 64 
 
 enum mstg_mode {
     NONE,
@@ -62,6 +62,7 @@ int main(int argc, char** argv) {
             total_size += bytes_read;
         }
         mstg_mp3_write_message(mp3, (void*)message, total_size, key);
+        mstg_mp3_writeout(mp3);
     }
     else {
         void* msg = NULL;
