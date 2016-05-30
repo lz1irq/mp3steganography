@@ -17,6 +17,7 @@
 typedef struct _mstg_mp3_t mstg_mp3_t;
 
 mstg_mp3_t* mstg_mp3_new(const char* file_path);
+void mstg_mp3_close(mstg_mp3_t *mp3);
 
 uint32_t mstg_mp3_parse_tag_size(mstg_mp3_t* mp3);
 uint32_t mstg_mp3_get_tag_size(mstg_mp3_t* mp3);

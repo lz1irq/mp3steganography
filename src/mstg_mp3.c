@@ -49,6 +49,12 @@ mstg_mp3_t* mstg_mp3_new(const char* file_path) {
     return mp3;
 }
 
+void mstg_mp3_close(mstg_mp3_t *mp3) {
+    free(mp3->file_path);
+    free(mp3->bytes);
+    free(mp3);
+}
+
 size_t mstg_mp3_writeout(mstg_mp3_t *mp3) {
     mp3->file = fopen(mp3->file_path, "wb+");
     size_t bytes_written = fwrite(mp3->bytes, 1, mp3->size, mp3->file);
@@ -58,8 +64,11 @@ size_t mstg_mp3_writeout(mstg_mp3_t *mp3) {
 
 size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
 
-    size_t msg_len = *((size_t*)mstg_mp3_read_frame(mp3, MSG_SIZE_FRAME, sizeof(size_t)));
-    fprintf(stderr,"MSG SIZE: %d\n", msg_len);
+    size_t *msg_len_raw = (size_t*)mstg_mp3_read_frame(mp3, MSG_SIZE_FRAME, sizeof(size_t));
+    size_t msg_len = 0;
+    memcpy(&msg_len, msg_len_raw, sizeof(size_t));
+    free(msg_len_raw);
+    fprintf(stderr,"MSG SIZE: %zu\n", msg_len);
 
     srand(key);
     size_t default_read_size = mp3->frame_size - MP3_FRAME_HEADER_SIZE;
@@ -70,7 +79,7 @@ size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
     *msg = malloc(msg_len);
 
     if(!*msg) {
-        fprintf(stderr, "Cannot allocate %d bytes, quitting\n", msg_len);
+        fprintf(stderr, "Cannot allocate %zu bytes, quitting\n", msg_len);
         exit(1);
     }
 
@@ -79,10 +88,13 @@ size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
         size_t read_size = 0;
         if (msg_len - bytes_read >= default_read_size) read_size = default_read_size;
         else read_size = msg_len - bytes_read;
-        fprintf(stderr,"Trying to read %d bytes from frame %d\n", read_size, frame_id);
+
+        fprintf(stderr,"Trying to read %zu bytes from frame %d\n", read_size, frame_id);
+        
         void* data = mstg_mp3_read_frame(mp3, frame_id, read_size);
         memcpy(*msg+bytes_read, data, read_size);
         bytes_read += read_size;
+        free(data);
     }
 
     return msg_len;
@@ -102,7 +114,7 @@ int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32
     size_t default_write_size = mp3->frame_size - MP3_FRAME_HEADER_SIZE;
     uint32_t max_frames = (mp3->size - mp3->tag_size)/default_write_size;
     uint32_t frames = (msg_len + default_write_size -1)/default_write_size;
-    fprintf(stderr,"DEFAULT SIZE: %d MAX_FRAMES: %d USED: %d\n", default_write_size, max_frames, frames);
+    fprintf(stderr,"DEFAULT SIZE: %zu MAX_FRAMES: %d USED: %d\n", default_write_size, max_frames, frames);
 
     /* one extra frame to hold the size of the message */
     if(frames + 1 > max_frames) {
@@ -117,7 +129,7 @@ int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32
         size_t write_size = 0;
         if (msg_len >= default_write_size) write_size = default_write_size;
         else write_size = msg_len;
-        fprintf(stderr,"Trying to write %d bytes to frame %d\n", write_size, frame_id);
+        fprintf(stderr,"Trying to write %zu bytes to frame %d\n", write_size, frame_id);
 
         mstg_mp3_write_frame(mp3, frame_id, msg, write_size);
         msg_len -= write_size;
@@ -127,7 +139,7 @@ int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32
 
 int8_t mstg_mp3_write_frame(mstg_mp3_t *mp3, uint32_t frame_number, void* msg, size_t msg_len) {
     size_t write_pos = mp3->tag_size + frame_number*(mp3->frame_size) + MP3_FRAME_HEADER_SIZE;
-    //fprintf(stderr, "Writing to location: %d of %d\n", write_pos, mp3->size);
+    //fprintf(stderr, "Writing to location: %zu of %zu\n", write_pos, mp3->size);
     if (mp3->size - write_pos >= msg_len) {
         memcpy(mp3->bytes + write_pos, msg, msg_len);
         return 0;
