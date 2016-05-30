@@ -48,21 +48,23 @@ int main(int argc, char** argv) {
         exit(1);
     }
     else if(mode == CONCEAL) {
-        char inp_buf[STDIN_BUF_SIZE] = {0};
-        char *message = NULL;
+        void *inp_buf = malloc(STDIN_BUF_SIZE);
+        void *message = NULL;
         size_t total_size = 0;
 
         mstg_mp3_t *mp3 = mstg_mp3_new(mp3_path);
     
-        //TODO: separate message reading in another function
         while(!feof(stdin)) {
             size_t bytes_read = fread(inp_buf, sizeof(char), STDIN_BUF_SIZE, stdin); 
-            message = realloc(message, total_size+bytes_read);
-            memcpy(message+total_size, inp_buf, bytes_read);
             total_size += bytes_read;
+            message = realloc(message, total_size);
+            memcpy(message+total_size-bytes_read, inp_buf, bytes_read);
         }
         mstg_mp3_write_message(mp3, (void*)message, total_size, key);
         mstg_mp3_writeout(mp3);
+
+        free(inp_buf);
+        free(message);
     }
     else {
         void* msg = NULL;

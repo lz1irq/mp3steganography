@@ -59,7 +59,7 @@ size_t mstg_mp3_writeout(mstg_mp3_t *mp3) {
 size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
 
     size_t msg_len = *((size_t*)mstg_mp3_read_frame(mp3, MSG_SIZE_FRAME, sizeof(size_t)));
-    printf("MSG SIZE: %d\n", msg_len);
+    fprintf(stderr,"MSG SIZE: %d\n", msg_len);
 
     srand(key);
     size_t default_read_size = mp3->frame_size - MP3_FRAME_HEADER_SIZE;
@@ -79,7 +79,7 @@ size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
         size_t read_size = 0;
         if (msg_len - bytes_read >= default_read_size) read_size = default_read_size;
         else read_size = msg_len - bytes_read;
-       
+        fprintf(stderr,"Trying to read %d bytes from frame %d\n", read_size, frame_id);
         void* data = mstg_mp3_read_frame(mp3, frame_id, read_size);
         memcpy(*msg+bytes_read, data, read_size);
         bytes_read += read_size;
@@ -102,7 +102,7 @@ int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32
     size_t default_write_size = mp3->frame_size - MP3_FRAME_HEADER_SIZE;
     uint32_t max_frames = (mp3->size - mp3->tag_size)/default_write_size;
     uint32_t frames = (msg_len + default_write_size -1)/default_write_size;
-    printf("MAX_FRAMES: %d USED: %d\n", max_frames, frames);
+    fprintf(stderr,"DEFAULT SIZE: %d MAX_FRAMES: %d USED: %d\n", default_write_size, max_frames, frames);
 
     /* one extra frame to hold the size of the message */
     if(frames + 1 > max_frames) {
@@ -117,11 +117,24 @@ int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32
         size_t write_size = 0;
         if (msg_len >= default_write_size) write_size = default_write_size;
         else write_size = msg_len;
+        fprintf(stderr,"Trying to write %d bytes to frame %d\n", write_size, frame_id);
 
         mstg_mp3_write_frame(mp3, frame_id, msg, write_size);
         msg_len -= write_size;
     }
-    return 1;
+    return 0;
+}
+
+int8_t mstg_mp3_write_frame(mstg_mp3_t *mp3, uint32_t frame_number, void* msg, size_t msg_len) {
+    size_t write_pos = mp3->tag_size + frame_number*(mp3->frame_size) + MP3_FRAME_HEADER_SIZE;
+    //fprintf(stderr, "Writing to location: %d of %d\n", write_pos, mp3->size);
+    if (mp3->size - write_pos >= msg_len) {
+        memcpy(mp3->bytes + write_pos, msg, msg_len);
+        return 0;
+    }
+    else {
+        return -1;
+    }
 }
 
 uint32_t mstg_mp3_rand_frame(uint32_t max_frames) {
@@ -130,17 +143,6 @@ uint32_t mstg_mp3_rand_frame(uint32_t max_frames) {
         frame_id = rand() % max_frames;
     }
     return frame_id;
-}
-
-int8_t mstg_mp3_write_frame(mstg_mp3_t *mp3, uint32_t frame_number, void* msg, size_t msg_len) {
-    size_t write_pos = mp3->tag_size + frame_number*(mp3->frame_size) + MP3_FRAME_HEADER_SIZE;
-    if (mp3->size - write_pos >= msg_len) {
-        memcpy(mp3->bytes + write_pos, msg, msg_len);
-        return 0;
-    }
-    else {
-        return -1;
-    }
 }
 
 uint32_t mstg_mp3_frame_size(mstg_mp3_t *mp3) {
