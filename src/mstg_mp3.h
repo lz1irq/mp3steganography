@@ -19,9 +19,8 @@ typedef struct _mstg_mp3_t mstg_mp3_t;
 mstg_mp3_t* mstg_mp3_new(const char* file_path);
 void mstg_mp3_close(mstg_mp3_t *mp3);
 
-uint32_t mstg_mp3_parse_tag_size(mstg_mp3_t* mp3);
-uint32_t mstg_mp3_get_tag_size(mstg_mp3_t* mp3);
-uint32_t mstg_mp3_frame_size(mstg_mp3_t *mp3);
+size_t mstg_mp3_tag_size(mstg_mp3_t* mp3);
+size_t mstg_mp3_frame_size(mstg_mp3_t *mp3);
 
 int8_t mstg_mp3_write_frame(mstg_mp3_t *mp3, uint32_t frame_number, void* msg, size_t msg_len);
 int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32_t key);
@@ -29,7 +28,7 @@ size_t mstg_mp3_writeout(mstg_mp3_t *mp3);
 
 void* mstg_mp3_read_frame(mstg_mp3_t *mp3, uint32_t frame_number, size_t read_size);
 size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg);
-uint32_t mstg_mp3_rand_frame(uint32_t max_frames);
+size_t mstg_mp3_rand_frame(uint32_t max_frames);
 
 
 int unsynchsafe(int in); 

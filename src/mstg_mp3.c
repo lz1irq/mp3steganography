@@ -17,8 +17,10 @@ struct _mstg_mp3_t {
     size_t position;
     char* bytes;
 
-    int32_t tag_size;
-    uint32_t frame_size;
+    size_t tag_size;
+    size_t frame_size;
+    size_t rw_size;
+    size_t max_frames;
 };
 
 uint32_t bitrate_map[] = {0, 32000, 40000, 48000, 56000, 64000, 80000, 96000, 112000, 128000, 160000,
@@ -44,8 +46,10 @@ mstg_mp3_t* mstg_mp3_new(const char* file_path) {
     fclose(mp3->file);
     mp3->position = 0;
 
-    mstg_mp3_parse_tag_size(mp3);
+    mstg_mp3_tag_size(mp3);
     mstg_mp3_frame_size(mp3);
+    mp3->rw_size= mp3->frame_size - MP3_FRAME_HEADER_SIZE;
+    mp3->max_frames = (mp3->size - mp3->tag_size)/mp3->rw_size;
     return mp3;
 }
 
@@ -71,10 +75,8 @@ size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
     fprintf(stderr,"MSG SIZE: %zu\n", msg_len);
 
     srand(key);
-    size_t default_read_size = mp3->frame_size - MP3_FRAME_HEADER_SIZE;
     size_t bytes_read = 0;
-    uint32_t max_frames = (mp3->size - mp3->tag_size)/default_read_size;
-    uint32_t frames = (msg_len + default_read_size - 1)/default_read_size;
+    uint32_t frames = (msg_len + mp3->rw_size - 1)/mp3->rw_size;
 
     *msg = malloc(msg_len);
 
@@ -84,9 +86,9 @@ size_t mstg_mp3_read_message(mstg_mp3_t *mp3, uint32_t key, void** msg) {
     }
 
     for(uint32_t i=0; i<frames; i++) {
-        uint32_t frame_id = mstg_mp3_rand_frame(max_frames);
+        uint32_t frame_id = mstg_mp3_rand_frame(mp3->max_frames);
         size_t read_size = 0;
-        if (msg_len - bytes_read >= default_read_size) read_size = default_read_size;
+        if (msg_len - bytes_read >= mp3->rw_size) read_size = mp3->rw_size;
         else read_size = msg_len - bytes_read;
 
         fprintf(stderr,"Trying to read %zu bytes from frame %d\n", read_size, frame_id);
@@ -111,25 +113,23 @@ void* mstg_mp3_read_frame(mstg_mp3_t *mp3, uint32_t frame_number, size_t read_si
 
 int8_t mstg_mp3_write_message(mstg_mp3_t *mp3, void* msg, size_t msg_len, uint32_t key) {
     srand(key);
-    size_t default_write_size = mp3->frame_size - MP3_FRAME_HEADER_SIZE;
-    uint32_t max_frames = (mp3->size - mp3->tag_size)/default_write_size;
-    uint32_t frames = (msg_len + default_write_size -1)/default_write_size;
-    fprintf(stderr,"DEFAULT SIZE: %zu MAX_FRAMES: %d USED: %d\n", default_write_size, max_frames, frames);
+    uint32_t frames = (msg_len + mp3->rw_size -1)/mp3->rw_size;
+    fprintf(stderr,"DEFAULT SIZE: %zu MAX_FRAMES: %zu USED: %d\n", mp3->rw_size, mp3->max_frames, frames);
 
     /* one extra frame to hold the size of the message */
-    if(frames + 1 > max_frames) {
+    if(frames + 1 > mp3->max_frames) {
         return -1; 
     }
 
     mstg_mp3_write_frame(mp3, MSG_SIZE_FRAME, &msg_len, sizeof(msg_len)); 
 
     for(uint32_t i=0; i<frames; i++) {
-        uint32_t frame_id = mstg_mp3_rand_frame(max_frames);
+        size_t frame_id = mstg_mp3_rand_frame(mp3->max_frames);
         
         size_t write_size = 0;
-        if (msg_len >= default_write_size) write_size = default_write_size;
+        if (msg_len >= mp3->rw_size) write_size = mp3->rw_size;
         else write_size = msg_len;
-        fprintf(stderr,"Trying to write %zu bytes to frame %d\n", write_size, frame_id);
+        fprintf(stderr,"Trying to write %zu bytes to frame %zu\n", write_size, frame_id);
 
         mstg_mp3_write_frame(mp3, frame_id, msg, write_size);
         msg_len -= write_size;
@@ -149,18 +149,18 @@ int8_t mstg_mp3_write_frame(mstg_mp3_t *mp3, uint32_t frame_number, void* msg, s
     }
 }
 
-uint32_t mstg_mp3_rand_frame(uint32_t max_frames) {
-    uint32_t frame_id = MSG_SIZE_FRAME;
+size_t mstg_mp3_rand_frame(uint32_t max_frames) {
+    size_t frame_id = MSG_SIZE_FRAME;
     while (frame_id == MSG_SIZE_FRAME) {
         frame_id = rand() % max_frames;
     }
     return frame_id;
 }
 
-uint32_t mstg_mp3_frame_size(mstg_mp3_t *mp3) {
+size_t mstg_mp3_frame_size(mstg_mp3_t *mp3) {
     if (!mp3->frame_size) {
-        uint32_t bitrate = 0;
-        uint32_t sample_rate = 0;
+        size_t bitrate = 0;
+        size_t sample_rate = 0;
         uint8_t padding = 0;
         
         uint8_t byte1 = 0, byte2 = 0;
@@ -185,18 +185,14 @@ uint32_t mstg_mp3_frame_size(mstg_mp3_t *mp3) {
     return mp3->frame_size;
 }
 
-uint32_t mstg_mp3_get_tag_size(mstg_mp3_t *mp3) {
-    return mp3->tag_size;
-}
-
-uint32_t mstg_mp3_parse_tag_size(mstg_mp3_t *mp3) {
+size_t mstg_mp3_tag_size(mstg_mp3_t *mp3) {
     if(!mp3) return 0;
-    uint32_t size = 0;
+    size_t size = 0;
     if (mp3->tag_size) { /* don't need to read the size again if we've got it already */
         return mp3->tag_size;
     }
     if (!strncmp(mp3->bytes, ID3V2_IDENTIFIER, strlen(ID3V2_IDENTIFIER))) {
-        uint32_t synchsafe_size = 0;
+        size_t synchsafe_size = 0;
         memcpy(&synchsafe_size, mp3->bytes+ID3V2_SIZE_OFFSET, sizeof(uint32_t));
         /* using htonl() because the size is stored in big-endian order */
         size = unsynchsafe(htonl(synchsafe_size)) + ID3V2_HEADER_SIZE;
